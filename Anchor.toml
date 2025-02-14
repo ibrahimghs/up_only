@@ -1,0 +1,31 @@
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[programs.localnet]
+up_only = "71SrXrVtxh3efZgxQRidBJeVZY1PKaTY6mcRRomVcuy8"
+
+[programs.devnet]
+up_only = "1q6XfXMucUSmdYqjDjkbWt8ZYFm4ox7d6fT4CfHrt2T"
+
+[programs.mainnet]
+up_only = "MAINNET_PROGRAM_ID_HERE"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 60000 tests/**/*.ts"
+deploy = "anchor build && anchor deploy"
+
+[workspace]
+members = [
+    "programs/*"
+]
+
+[clusters]
+localnet = "http://127.0.0.1:8899"
+devnet = "https://api.devnet.solana.com"
+mainnet = "https://api.mainnet-beta.solana.com"
+
+[build]
+skip-lint = false
+arch = "bpf"
