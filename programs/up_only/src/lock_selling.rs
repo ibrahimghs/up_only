@@ -1,58 +1,79 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Token};
 
 #[program]
 pub mod lock_selling {
     use super::*;
 
-    pub fn lock_sales(ctx: Context<LockSales>, lock_until: i64) -> Result<()> {
-        let lock_state = &mut ctx.accounts.token_lock;
-        let current_time = Clock::get()?.unix_timestamp;
+    pub fn vote_lock_selling(ctx: Context<VoteLockSelling>, vote: bool) -> Result<()> {
+        let governance = &mut ctx.accounts.governance;
+        let voter = &ctx.accounts.voter;
 
+        // Ensure the voter has governance power
         require!(
-            lock_until > current_time + (7 * 24 * 60 * 60) && lock_until <= current_time + (90 * 24 * 60 * 60),
-            LockError::InvalidLockPeriod
+            voter.holdings > 0,
+            LockSellingError::NoVotingPower
         );
 
-        lock_state.lock_until = lock_until;
-        lock_state.is_locked = true;
+        if vote {
+            governance.lock_votes += voter.holdings;
+        } else {
+            governance.unlock_votes += voter.holdings;
+        }
+
+        // Check if lock should be applied
+        if governance.lock_votes as f64
+            >= (governance.total_supply as f64 * governance.majority_threshold)
+        {
+            governance.selling_locked = true;
+            governance.lock_end_timestamp = Clock::get()?.unix_timestamp + governance.min_lock_time;
+        }
+
+        // Check if unlock should be applied
+        if governance.unlock_votes as f64
+            >= (governance.total_supply as f64 * governance.majority_threshold)
+        {
+            require!(
+                Clock::get()?.unix_timestamp >= governance.lock_end_timestamp,
+                LockSellingError::CannotUnlockYet
+            );
+            governance.selling_locked = false;
+            governance.lock_votes = 0;
+            governance.unlock_votes = 0;
+        }
 
         Ok(())
     }
+}
 
-    pub fn unlock_sales(ctx: Context<UnlockSales>) -> Result<()> {
-        let lock_state = &mut ctx.accounts.token_lock;
-        lock_state.is_locked = false;
+#[derive(Accounts)]
+pub struct VoteLockSelling<'info> {
+    #[account(mut)]
+    pub voter: Signer<'info>,
 
-        Ok(())
-    }
+    #[account(mut)]
+    pub governance: Account<'info, Governance>,
 }
 
 #[account]
-pub struct TokenLock {
-    pub lock_until: i64,  // Timestamp when the lock expires
-    pub is_locked: bool,  // Whether sales are currently locked
+pub struct Governance {
+    pub selling_locked: bool, // Whether selling is currently locked
+    pub lock_votes: u64,      // Total votes in favor of locking
+    pub unlock_votes: u64,    // Total votes in favor of unlocking
+    pub total_supply: u64,    // Total token supply for governance calculations
+    pub majority_threshold: f64, // % of votes required to make a decision (e.g., 0.6 for 60%)
+    pub lock_end_timestamp: i64, // Unix timestamp when selling can be unlocked
+    pub min_lock_time: i64,   // Minimum lock period (in seconds)
 }
 
-#[derive(Accounts)]
-pub struct LockSales<'info> {
-    #[account(mut)]
-    pub governance_account: Signer<'info>,  // Only governance can lock selling
-    #[account(init_if_needed, payer = governance_account, space = 8 + 16)]
-    pub token_lock: Account<'info, TokenLock>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct UnlockSales<'info> {
-    #[account(mut)]
-    pub governance_account: Signer<'info>,  // Only governance can unlock selling
-    #[account(mut)]
-    pub token_lock: Account<'info, TokenLock>,
+#[account]
+pub struct Voter {
+    pub holdings: u64, // Number of tokens held (governance power)
 }
 
 #[error_code]
-pub enum LockError {
-    #[msg("Lock period must be between 1 week and 3 months.")]
-    InvalidLockPeriod,
+pub enum LockSellingError {
+    #[msg("User has no governance power to vote.")]
+    NoVotingPower,
+    #[msg("Cannot unlock selling yet; minimum lock period has not passed.")]
+    CannotUnlockYet,
 }

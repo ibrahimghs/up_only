@@ -1,8 +1,7 @@
-
 [package]
 name = "up_only"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "UpOnly - A Solana-based token launchpad with governance, staking, and trading features."
 edition = "2021"
 
 [lib]
@@ -23,6 +22,7 @@ anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
 anchor-spl = "0.30.1"
 solana-program = "1.17.19"
 
-[dev-dependencies]
-solana-sdk = "1.17.19"
-anchor-client = "0.30.1"
+[workspace]
+members = [
+    "programs/up_only"
+]
