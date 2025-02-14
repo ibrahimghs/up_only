@@ -1,18 +1,24 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo};
+use solana_program::program_option::COption;
 
 #[program]
 pub mod token_creation {
     use super::*;
 
-    /// Function to create a new token mint
+    // ✅ Ensure function is public
     pub fn create_token(
         ctx: Context<CreateToken>,
         name: String,
         symbol: String,
         decimals: u8,
     ) -> Result<()> {
+        let mint = &mut ctx.accounts.mint;
+        mint.mint_authority = COption::Some(ctx.accounts.authority.key());
+        mint.freeze_authority = COption::Some(ctx.accounts.authority.key());
+
         msg!("Token Created: {} ({}) with {} decimals", name, symbol, decimals);
+
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 [provider]
-cluster = "devnet"  # Change to "mainnet-beta" when deploying to mainnet
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [programs.devnet]
@@ -7,9 +7,6 @@ up_only = "1q6XfXMucUSmdYqjDjkbWt8ZYFm4ox7d6fT4CfHrt2T"
 
 [programs.localnet]
 up_only = "71SrXrVtxh3efZgxQRidBJeVZY1PKaTY6mcRRomVcuy8"
-
-[programs.mainnet]
-up_only = "YOUR_MAINNET_PROGRAM_ID_HERE"  # Replace this when deploying to mainnet
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 60000 tests/**/*.ts"
@@ -22,7 +19,6 @@ members = [
 [clusters]
 localnet = "http://localhost:8899"
 devnet = "https://api.devnet.solana.com"
-mainnet = "https://api.mainnet-beta.solana.com"
 
 [build]
 skip-lint = false

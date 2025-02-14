@@ -18,7 +18,8 @@ pub mod staking {
         );
 
         // Transfer tokens from the user's account to the staking pool
-        let seeds = &[b"staking_pool", ctx.accounts.staking_pool.key().as_ref(), &[ctx.accounts.staking_pool.bump]];
+        let staking_key = ctx.accounts.staking_pool.key();
+let seeds = &[b"staking_pool", staking_key.as_ref(), &[ctx.accounts.staking_pool.bump]];
         let signer_seeds = &[&seeds[..]];
         
         token::transfer(

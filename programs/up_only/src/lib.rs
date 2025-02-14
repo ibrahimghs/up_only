@@ -7,11 +7,11 @@ pub mod governance;
 pub mod trading;
 pub mod lock_selling;
 
-use crate::token_creation::create_token;
-use crate::staking::stake;
-use crate::governance::cast_vote;
-use crate::trading::{buy_token, sell_token};
-use crate::lock_selling::{vote_to_lock, emergency_unlock};
+pub use crate::token_creation::create_token;
+pub use crate::staking::stake;
+pub use crate::governance::cast_vote;
+pub use crate::trading::{buy_token, sell_token};
+pub use crate::lock_selling::{vote_to_lock, emergency_unlock};
 
 declare_id!("YourProgramPublicKeyHere");
 
@@ -32,9 +32,9 @@ pub mod up_only {
         staking::stake(ctx, amount) // ✅ Correct function call
     }
 
-    pub fn cast_vote(ctx: Context<CastVote>, in_favor: bool) -> Result<()> {
-        governance::cast_vote(ctx, in_favor) // ✅ Correct function call
-    }
+    pub fn cast_vote(ctx: Context<governance::CastVote>, in_favor: bool) -> Result<()> {
+        governance::cast_vote(ctx, in_favor)
+    }    
 
     pub fn buy_token(ctx: Context<BuyToken>, amount: u64) -> Result<()> {
         trading::buy_token(ctx, amount) // ✅ Correct function call
