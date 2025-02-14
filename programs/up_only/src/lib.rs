@@ -3,10 +3,11 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
 use crate::governance::Governance;
 use crate::staking::StakingPool;
-mod token_creation;
-mod governance;
-mod staking;
-mod trading;
+pub mod token_creation;
+pub mod governance;
+pub mod staking;
+pub mod trading;
+pub mod lock_selling;
 
 #[program]
 mod up_only {
