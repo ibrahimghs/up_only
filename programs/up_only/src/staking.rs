@@ -1,15 +1,16 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use solana_program::clock::Clock;
 
 #[program]
 pub mod staking {
     use super::*;
 
+    /// Function to stake tokens into the staking pool
     pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
         let staking_account = &mut ctx.accounts.staking_pool;
         let clock = Clock::get()?;
-        
+
         // Ensure user has enough tokens to stake
         require!(
             ctx.accounts.user_token_account.amount >= amount,
@@ -17,10 +18,11 @@ pub mod staking {
         );
 
         // Transfer tokens from the user's account to the staking pool
+        let seeds = &[b"staking_pool", ctx.accounts.staking_pool.key().as_ref(), &[ctx.accounts.staking_pool.bump]];
+        let signer_seeds = &[&seeds[..]];
+        
         token::transfer(
-            ctx.accounts
-                .transfer_context()
-                .with_signer(&[&ctx.accounts.staking_pool.to_account_info().key.as_ref()]),
+            ctx.accounts.transfer_context().with_signer(signer_seeds),
             amount,
         )?;
 
@@ -43,6 +45,7 @@ pub mod staking {
         Ok(())
     }
 
+    /// Function to unstake tokens from the staking pool
     pub fn unstake(ctx: Context<Unstake>) -> Result<()> {
         let staking_pool = &mut ctx.accounts.staking_pool;
         let staker_account = &mut ctx.accounts.staker_account;
@@ -65,10 +68,11 @@ pub mod staking {
         let amount = staker_account.amount_staked;
 
         // Transfer tokens back to the user
+        let seeds = &[b"staking_pool", ctx.accounts.staking_pool.key().as_ref(), &[ctx.accounts.staking_pool.bump]];
+        let signer_seeds = &[&seeds[..]];
+        
         token::transfer(
-            ctx.accounts
-                .transfer_context()
-                .with_signer(&[&ctx.accounts.staking_pool.to_account_info().key.as_ref()]),
+            ctx.accounts.transfer_context().with_signer(signer_seeds),
             amount,
         )?;
 
@@ -90,15 +94,16 @@ pub mod staking {
     }
 }
 
+/// **Accounts for Staking**
 #[derive(Accounts)]
 pub struct Stake<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    
+
     #[account(mut)]
     pub staking_pool: Account<'info, StakingPool>,
 
-    #[account(mut, constraint = user_token_account.owner == user.key())]
+    #[account(mut, has_one = user)]
     pub user_token_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
@@ -111,6 +116,7 @@ pub struct Stake<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// **Accounts for Unstaking**
 #[derive(Accounts)]
 pub struct Unstake<'info> {
     #[account(mut)]
@@ -122,7 +128,7 @@ pub struct Unstake<'info> {
     #[account(mut)]
     pub staking_token_account: Account<'info, TokenAccount>,
 
-    #[account(mut, constraint = user_token_account.owner == user.key())]
+    #[account(mut, has_one = user)]
     pub user_token_account: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = user)]
@@ -132,11 +138,14 @@ pub struct Unstake<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// **Staking Pool Struct**
 #[account]
 pub struct StakingPool {
     pub total_staked: u64,
+    pub bump: u8, // Added to store PDA bump seed
 }
 
+/// **User's Stake Account**
 #[account]
 pub struct StakerAccount {
     pub staker: Pubkey,
@@ -144,6 +153,7 @@ pub struct StakerAccount {
     pub stake_start_time: i64,
 }
 
+/// **Staking Errors**
 #[error_code]
 pub enum StakingError {
     #[msg("Insufficient funds to stake.")]
@@ -154,6 +164,7 @@ pub enum StakingError {
     StakeLocked,
 }
 
+/// **Transfer Context Implementation**
 impl<'info> Stake<'info> {
     fn transfer_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         let cpi_accounts = Transfer {

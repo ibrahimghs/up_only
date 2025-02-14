@@ -5,12 +5,13 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 pub mod trading {
     use super::*;
 
+    /// Allows a user to buy tokens from a seller
     pub fn buy_tokens(ctx: Context<BuyTokens>, amount: u64) -> Result<()> {
         let token_mint = &ctx.accounts.token_mint;
         let seller_token_account = &ctx.accounts.seller_token_account;
         let buyer_token_account = &ctx.accounts.buyer_token_account;
-        
-        // Ensure sufficient supply
+
+        // Ensure seller has enough tokens
         require!(
             seller_token_account.amount >= amount,
             TradingError::InsufficientSupply
@@ -20,9 +21,13 @@ pub mod trading {
         token::transfer(
             ctx.accounts
                 .transfer_context()
-                .with_signer(&[&token_mint.key().as_ref()]),
+                .with_signer(&[&ctx.accounts.seller.key().as_ref()]),
             amount,
         )?;
+
+        // Update trading pool metrics
+        let trading_pool = &mut ctx.accounts.trading_pool;
+        trading_pool.total_traded += amount;
 
         msg!(
             "User {} bought {} tokens from {}",
@@ -34,8 +39,9 @@ pub mod trading {
         Ok(())
     }
 
+    /// Allows a user to sell tokens into the trading pool if selling is not locked
     pub fn sell_tokens(ctx: Context<SellTokens>, amount: u64) -> Result<()> {
-        let trading_pool = &ctx.accounts.trading_pool;
+        let trading_pool = &mut ctx.accounts.trading_pool;
         let governance_account = &ctx.accounts.governance;
 
         // Ensure that selling is not locked
@@ -44,37 +50,42 @@ pub mod trading {
             TradingError::SellingLocked
         );
 
-        // Ensure user has enough tokens to sell
+        // Ensure seller has enough tokens
         require!(
             ctx.accounts.seller_token_account.amount >= amount,
             TradingError::InsufficientBalance
         );
 
-        // Transfer tokens from seller to pool
+        // Transfer tokens from seller to trading pool
         token::transfer(
             ctx.accounts
                 .transfer_context()
-                .with_signer(&[&trading_pool.key().as_ref()]),
+                .with_signer(&[&ctx.accounts.seller.key().as_ref()]),
             amount,
         )?;
 
+        // Update trading pool total traded amount
+        trading_pool.total_traded += amount;
+
         msg!(
-            "User {} sold {} tokens",
+            "User {} sold {} tokens. Total traded in pool: {}",
             ctx.accounts.seller.key(),
-            amount
+            amount,
+            trading_pool.total_traded
         );
 
         Ok(())
     }
 }
 
+/// **Context for Buying Tokens**
 #[derive(Accounts)]
 pub struct BuyTokens<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
 
     #[account(mut)]
-    pub seller: SystemAccount<'info>,
+    pub seller: Signer<'info>,
 
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
@@ -85,15 +96,27 @@ pub struct BuyTokens<'info> {
     #[account(mut)]
     pub buyer_token_account: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        seeds = [b"trading_pool"],
+        bump
+    )]
+    pub trading_pool: Account<'info, TradingPool>,
+
     pub token_program: Program<'info, Token>,
 }
 
+/// **Context for Selling Tokens**
 #[derive(Accounts)]
 pub struct SellTokens<'info> {
     #[account(mut)]
     pub seller: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"trading_pool"],
+        bump
+    )]
     pub trading_pool: Account<'info, TradingPool>,
 
     #[account(mut)]
@@ -102,22 +125,29 @@ pub struct SellTokens<'info> {
     #[account(mut)]
     pub trading_token_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"governance"],
+        bump
+    )]
     pub governance: Account<'info, Governance>,
 
     pub token_program: Program<'info, Token>,
 }
 
+/// **Trading Pool Account**
 #[account]
 pub struct TradingPool {
     pub total_traded: u64,
 }
 
+/// **Governance Account**
 #[account]
 pub struct Governance {
     pub selling_locked: bool, // Whether selling is locked
 }
 
+/// **Trading Errors**
 #[error_code]
 pub enum TradingError {
     #[msg("Insufficient token supply for purchase.")]
